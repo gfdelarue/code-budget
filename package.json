@@ -1,0 +1,53 @@
+{
+  "name": "@gfdelarue/code-budget",
+  "version": "0.1.1",
+  "description": "Enforce explicit maintenance-size budgets for source repositories",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gfdelarue/code-budget.git"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "files": [
+    "dist/",
+    "METHODOLOGY.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "bin": {
+    "code-budget": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "bump": "node scripts/bump.mjs",
+    "budget": "node --import tsx src/cli.ts check",
+    "check": "npm run format:check && npm run typecheck && npm test && npm run budget && npm run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --import tsx --test 'test/**/*.test.ts'",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "dependencies": {
+    "@kitschpatrol/tokei": "2.0.2",
+    "minimatch": "10.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "prettier": "3.6.2",
+    "tsx": "4.20.4",
+    "typescript": "5.9.2"
+  }
+}
