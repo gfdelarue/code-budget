@@ -52,6 +52,7 @@ export async function analyzeRepository(
   );
   const totals = {
     implementation: sumUsage(areas, "implementation"),
+    tooling: sumUsage(areas, "tooling"),
     verification: sumUsage(areas, "verification"),
   };
   const configured = options.configured ?? options.config !== undefined;
@@ -146,7 +147,7 @@ function collectViolations(
     violations.push({
       area: area.definition.name,
       kind: "review",
-      message: `Area ${area.definition.name} requires explicit implementation, verification, or reasoned exclusion classification.`,
+      message: `Area ${area.definition.name} requires explicit implementation, tooling, verification, or reasoned exclusion classification.`,
     });
   }
   for (const file of classification.unmatched) {

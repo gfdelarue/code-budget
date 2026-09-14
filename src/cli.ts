@@ -14,7 +14,7 @@ import { renderExplanation, renderReport, renderScopes } from "./render.js";
 import { SCOPE_NAMES, SCOPES } from "./scopes.js";
 import type { ScopeName } from "./types.js";
 
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 type Command = "default" | "check" | "explain" | "init" | "report" | "scopes";
 
 interface CliOptions {

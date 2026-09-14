@@ -58,7 +58,7 @@ test("analyzes source languages, structured fixtures, plain text, and binaries",
       files: "all",
       areas: [
         { name: "runtime", kind: "implementation", include: ["src/**"] },
-        { name: "tooling", kind: "implementation", include: ["scripts/**"] },
+        { name: "tooling", kind: "tooling", include: ["scripts/**"] },
         {
           name: "tests",
           kind: "verification",
@@ -74,8 +74,11 @@ test("analyzes source languages, structured fixtures, plain text, and binaries",
   );
   assert.deepEqual(
     [...languages].sort(),
-    ["C", "Python", "Rust", "TypeScript", "JavaScript"].sort(),
+    ["C", "Python", "Rust", "TypeScript"].sort(),
   );
+  assert.deepEqual(report.totals.tooling.languages, [
+    { language: "JavaScript", files: 1, lines: 1 },
+  ]);
   assert.equal(report.totals.verification.binaryFiles, 1);
   assert.equal(report.totals.verification.textFallbackFiles, 1);
   assert.ok(report.totals.verification.codeLines >= 4);

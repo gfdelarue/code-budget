@@ -1,7 +1,7 @@
 import type { ScopeDefinition, ScopeName } from "./types.js";
 
 export const METHODOLOGY_REFERENCE =
-  "https://github.com/gfdelarue/code-budget/blob/v0.1.1/METHODOLOGY.md";
+  "https://github.com/gfdelarue/code-budget/blob/v0.1.2/METHODOLOGY.md";
 
 export const SCOPES: Readonly<Record<ScopeName, ScopeDefinition>> =
   Object.freeze({

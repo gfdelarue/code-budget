@@ -43,3 +43,13 @@ test("validates the 0.1 area schema and excluded reasons", () => {
     },
   );
 });
+
+test("accepts tooling without reinterpreting existing implementation areas", () => {
+  for (const kind of ["tooling", "implementation"] as const) {
+    const config = {
+      scope: "simple-tool",
+      areas: [{ name: "tooling", kind, include: ["scripts/**"] }],
+    };
+    assert.deepEqual(validateConfig(config), config);
+  }
+});

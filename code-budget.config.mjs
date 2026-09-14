@@ -15,13 +15,8 @@ export default defineConfig({
     },
     {
       name: "tooling",
-      kind: "implementation",
-      include: [
-        "*.config.mjs",
-        "scripts/**",
-        "tsconfig*.json",
-        ".github/workflows/**",
-      ],
+      kind: "tooling",
+      include: ["*.config.mjs", "scripts/**", "tsconfig*.json", ".github/**"],
     },
   ],
 });

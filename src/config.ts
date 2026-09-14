@@ -114,9 +114,13 @@ function validateArea(input: unknown): asserts input is AreaDefinition {
     throw new Error("Every area requires a non-empty name");
   }
   if (
-    !["implementation", "verification", "excluded", "review"].includes(
-      String(input.kind),
-    )
+    ![
+      "implementation",
+      "tooling",
+      "verification",
+      "excluded",
+      "review",
+    ].includes(String(input.kind))
   ) {
     throw new Error(`${input.name}.kind is invalid`);
   }
@@ -187,18 +191,29 @@ export function isLegacyConfig(
 export function inferConfig(
   scope: ScopeName = "simple-tool",
 ): CodeBudgetConfig {
+  return initialConfig(scope);
+}
+
+export function initialConfig(scope: ScopeName): CodeBudgetConfig {
+  const github = [".github/**"];
   const verification = [
-    "test/**",
-    "tests/**",
-    "spec/**",
-    "specs/**",
+    "**/{test,tests,spec,specs,__tests__}/**",
     "**/*.test.*",
     "**/*.spec.*",
-    "**/__tests__/**",
-    "**/test/**",
-    "**/tests/**",
   ];
-  const fixtures = ["**/fixture/**", "**/fixtures/**", "**/__fixtures__/**"];
+  const fixtures = ["**/{fixture,fixtures,__fixtures__}/**"];
+  const tooling = [
+    "scripts/**",
+    "tools/**",
+    "tooling/**",
+    "**/{code-budget,vite,vitest,webpack,rollup,esbuild,tsup,babel,eslint,prettier,jest,playwright,cypress,next,nuxt,svelte,astro,postcss,tailwind}.config.{js,cjs,mjs,ts,cts,mts,json}",
+    "**/tsconfig*.json",
+    "**/{.eslintrc,.prettierrc,.babelrc}",
+    "**/{.eslintrc,.prettierrc,.babelrc}.{js,cjs,mjs,json,yaml,yml}",
+    "**/{Makefile,GNUmakefile,Justfile,justfile,Rakefile,Dockerfile,Dockerfile.*}",
+    "**/{compose,compose.*,docker-compose,docker-compose.*}.{yml,yaml}",
+    ".husky/**",
+  ];
   return {
     scope,
     areas: [
@@ -206,88 +221,30 @@ export function inferConfig(
         name: "runtime",
         kind: "implementation",
         include: ["src/**", "lib/**", "app/**", "packages/**", "bin/**"],
-        exclude: [...verification, ...fixtures],
+        exclude: [...github, ...verification, ...fixtures, ...tooling],
+      },
+      {
+        name: "github",
+        kind: "tooling",
+        include: github,
       },
       {
         name: "tooling",
-        kind: "implementation",
-        include: [
-          "scripts/**",
-          "tools/**",
-          "*.config.*",
-          "**/*.config.*",
-          ".github/actions/**",
-          ".github/workflows/**",
-        ],
-        exclude: [
-          ...verification,
-          ...fixtures,
-          "scripts/test/**",
-          "tools/test/**",
-        ],
+        kind: "tooling",
+        include: tooling,
+        exclude: [...github, ...verification, ...fixtures],
       },
       {
         name: "tests",
         kind: "verification",
         include: verification,
-        exclude: fixtures,
+        exclude: [...github, ...fixtures],
       },
       {
         name: "fixtures",
         kind: "verification",
         include: fixtures,
-      },
-    ],
-  };
-}
-
-export function initialConfig(scope: ScopeName): CodeBudgetConfig {
-  const verification = [
-    "test/**",
-    "tests/**",
-    "**/*.test.*",
-    "**/*.spec.*",
-    "**/__tests__/**",
-  ];
-  const fixtures = ["**/fixtures/**"];
-  return {
-    scope,
-    areas: [
-      {
-        name: "runtime",
-        kind: "implementation",
-        include: ["src/**", "lib/**", "app/**", "bin/**"],
-        exclude: [...verification, ...fixtures],
-      },
-      {
-        name: "tooling",
-        kind: "implementation",
-        include: [
-          "scripts/**",
-          "tools/**",
-          "*.config.*",
-          "**/*.config.*",
-          "tsconfig*.json",
-          ".github/actions/**",
-          ".github/workflows/**",
-        ],
-        exclude: [
-          "scripts/test/**",
-          "tools/test/**",
-          "**/*.test.*",
-          "**/*.spec.*",
-        ],
-      },
-      {
-        name: "tests",
-        kind: "verification",
-        include: verification,
-        exclude: fixtures,
-      },
-      {
-        name: "fixtures",
-        kind: "verification",
-        include: fixtures,
+        exclude: github,
       },
     ],
   };

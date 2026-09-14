@@ -40,6 +40,17 @@ export function renderReport(
       `  ${area.definition.name}: ${format(area.usage.codeLines)} LOC in ${format(area.usage.files)} files`,
     );
   }
+  lines.push("", "TOOLING (UNLIMITED)");
+  lines.push(
+    `  ${format(report.totals.tooling.codeLines)} LOC in ${format(report.totals.tooling.files)} files`,
+  );
+  for (const area of report.areas.filter(
+    (area) => area.definition.kind === "tooling",
+  )) {
+    lines.push(
+      `  ${area.definition.name}: ${format(area.usage.codeLines)} LOC in ${format(area.usage.files)} files`,
+    );
+  }
   lines.push("", "VERIFICATION (UNLIMITED)");
   lines.push(
     `  ${format(report.totals.verification.codeLines)} LOC in ${format(report.totals.verification.files)} files`,
@@ -128,7 +139,7 @@ export function renderScopes(details = false): string[] {
     }
   }
   lines.push("", `Methodology: ${METHODOLOGY_REFERENCE}`);
-  lines.push("Verification code and fixtures are always unlimited.");
+  lines.push("Tooling, verification code, and fixtures are always unlimited.");
   return lines;
 }
 
@@ -198,6 +209,7 @@ function combineLanguages(report: CodeBudgetReport) {
   for (const total of [
     report.totals.implementation,
     report.totals.verification,
+    report.totals.tooling,
   ]) {
     for (const language of total.languages) {
       const value = values.get(language.language) ?? { files: 0, lines: 0 };

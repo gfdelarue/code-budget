@@ -63,6 +63,9 @@ test("init requires a named scope, supports dry run, and refuses replacement", (
   ]);
   assert.equal(dry.status, 0);
   assert.equal(fs.existsSync(path.join(cwd, "code-budget.config.mjs")), false);
+  const scopeDirectory = path.join(cwd, "node_modules", "@gfdelarue");
+  fs.mkdirSync(scopeDirectory, { recursive: true });
+  fs.symlinkSync(root, path.join(scopeDirectory, "code-budget"), "junction");
   const create = cli(["init", "--scope", "atomic-library", "--cwd", cwd]);
   assert.equal(create.status, 0);
   assert.equal(cli(["--cwd", cwd]).status, 0);
@@ -108,7 +111,7 @@ test("report does not fail an exceeded policy while check and bare config do", (
 test("contextual help, version, scopes, explain, and unknown arguments", (context) => {
   const cwd = fixture(context);
   assert.match(cli(["check", "--help"]).stdout, /Requires configuration/);
-  assert.equal(cli(["--version"]).stdout, "0.1.1\n");
+  assert.equal(cli(["--version"]).stdout, "0.1.2\n");
   assert.match(cli(["scopes", "--details"]).stdout, /Methodology:/);
   assert.match(
     cli(["explain", "src\/index.ts", "--cwd", cwd]).stdout,
@@ -116,4 +119,60 @@ test("contextual help, version, scopes, explain, and unknown arguments", (contex
   );
   assert.equal(cli(["wat"]).status, 2);
   assert.equal(cli(["--unknown"]).status, 2);
+});
+
+test("tooling is measured without consuming the ceiling or verification ratio", (context) => {
+  const cwd = fixture(context);
+  for (const directory of ["src", "test", "scripts", ".github/workflows"]) {
+    fs.mkdirSync(path.join(cwd, directory), { recursive: true });
+  }
+  fs.writeFileSync(path.join(cwd, "src/main.ts"), "export const value = 1;\n");
+  fs.writeFileSync(
+    path.join(cwd, "test/main.test.ts"),
+    "const x = 1;\nconst y = 2;\n",
+  );
+  fs.writeFileSync(
+    path.join(cwd, "scripts/release.py"),
+    "print('release')\n".repeat(1_010),
+  );
+  fs.writeFileSync(path.join(cwd, ".github/workflows/ci.yml"), "name: CI\n");
+  const initial = cli([
+    "init",
+    "--scope",
+    "atomic-library",
+    "--dry-run",
+    "--cwd",
+    cwd,
+    "--json",
+  ]);
+  assert.equal(initial.status, 0, initial.stderr);
+  const report = JSON.parse(initial.stdout);
+  assert.equal(report.ok, true);
+  assert.equal(report.totals.implementation.codeLines, 1);
+  assert.equal(report.totals.verification.codeLines, 2);
+  assert.equal(report.totals.tooling.codeLines, 1_011);
+  assert.equal(report.totals.tooling.files, 2);
+  assert.deepEqual(report.violations, []);
+  assert.deepEqual(report.diagnostics.overlaps, {});
+  assert.deepEqual(report.diagnostics.unclassified, []);
+  const rendered = cli(["--cwd", cwd]);
+  assert.equal(rendered.status, 0, rendered.stderr);
+  assert.match(
+    rendered.stdout,
+    /TOOLING \(UNLIMITED\)\n  1,011 LOC in 2 files/,
+  );
+  assert.match(rendered.stdout, /Python: 1,010 LOC/);
+  assert.match(rendered.stdout, /Verification-to-implementation ratio: 2.00:1/);
+  const explanation = cli([
+    "explain",
+    ".github/workflows/ci.yml",
+    "--cwd",
+    cwd,
+    "--json",
+  ]);
+  assert.equal(explanation.status, 0, explanation.stderr);
+  assert.equal(
+    JSON.parse(explanation.stdout).explanation.affectsEnforcement,
+    false,
+  );
 });

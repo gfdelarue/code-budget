@@ -11,6 +11,7 @@ export type ScopeName =
 
 export type AreaKind =
   | "implementation"
+  | "tooling"
   | "verification"
   | "excluded"
   | "review";
@@ -114,6 +115,7 @@ export interface AnalysisDiagnostics {
 export interface AnalysisTotals {
   implementation: AreaUsage;
   verification: AreaUsage;
+  tooling: AreaUsage;
 }
 
 export interface CodeBudgetReport {

@@ -1,6 +1,6 @@
 {
   "name": "@gfdelarue/code-budget",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Enforce explicit maintenance-size budgets for source repositories",
   "type": "module",
   "license": "MIT",
@@ -31,7 +31,7 @@
     "build": "tsc -p tsconfig.build.json",
     "bump": "node scripts/bump.mjs",
     "budget": "node --import tsx src/cli.ts check",
-    "check": "npm run format:check && npm run typecheck && npm test && npm run budget && npm run build",
+    "check": "npm run format:check && npm run typecheck && npm run build && npm test && npm run budget",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node --import tsx --test 'test/**/*.test.ts'",
