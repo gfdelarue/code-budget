@@ -9,7 +9,7 @@
     "url": "git+https://github.com/gfdelarue/code-budget.git"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "files": [
     "dist/",
