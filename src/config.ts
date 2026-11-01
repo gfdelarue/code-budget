@@ -251,7 +251,7 @@ export function initialConfig(scope: ScopeName): CodeBudgetConfig {
 }
 
 export function renderConfig(scope: ScopeName): string {
-  return `import { defineConfig } from "@gfdelarue/code-budget";\n\nexport default defineConfig(${JSON.stringify(initialConfig(scope), null, 2)});\n`;
+  return `import { defineConfig } from "@moontern-labs/code-budget";\n\nexport default defineConfig(${JSON.stringify(initialConfig(scope), null, 2)});\n`;
 }
 
 function validateFileSet(value: unknown): void {

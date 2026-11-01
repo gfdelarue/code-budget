@@ -1,9 +1,9 @@
-# @gfdelarue/code-budget
+# @moontern-labs/code-budget
 
 An explicit implementation-LOC ceiling with unlimited tooling and verification.
 
 ```sh
-npm install --save-dev @gfdelarue/code-budget@0.1.2
+npm install --save-dev @moontern-labs/code-budget@0.1.3
 npx code-budget                 # infer and explain when unconfigured
 npx code-budget init --scope simple-tool
 npx code-budget                 # enforce the committed configuration
@@ -22,7 +22,7 @@ areas fails a configured check.
 ## Configuration
 
 ```js
-import { defineConfig } from "@gfdelarue/code-budget";
+import { defineConfig } from "@moontern-labs/code-budget";
 
 export default defineConfig({
   scope: "platform",
