@@ -63,7 +63,7 @@ test("init requires a named scope, supports dry run, and refuses replacement", (
   ]);
   assert.equal(dry.status, 0);
   assert.equal(fs.existsSync(path.join(cwd, "code-budget.config.mjs")), false);
-  const scopeDirectory = path.join(cwd, "node_modules", "@gfdelarue");
+  const scopeDirectory = path.join(cwd, "node_modules", "@moontern-labs");
   fs.mkdirSync(scopeDirectory, { recursive: true });
   fs.symlinkSync(root, path.join(scopeDirectory, "code-budget"), "junction");
   const create = cli(["init", "--scope", "atomic-library", "--cwd", cwd]);
@@ -111,7 +111,7 @@ test("report does not fail an exceeded policy while check and bare config do", (
 test("contextual help, version, scopes, explain, and unknown arguments", (context) => {
   const cwd = fixture(context);
   assert.match(cli(["check", "--help"]).stdout, /Requires configuration/);
-  assert.equal(cli(["--version"]).stdout, "0.1.2\n");
+  assert.equal(cli(["--version"]).stdout, "0.1.3\n");
   assert.match(cli(["scopes", "--details"]).stdout, /Methodology:/);
   assert.match(
     cli(["explain", "src\/index.ts", "--cwd", cwd]).stdout,

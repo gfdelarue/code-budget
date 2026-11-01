@@ -54,5 +54,5 @@ if (!dryRun) {
 }
 
 process.stdout.write(
-  `${dryRun ? "Would bump" : "Bumped"} @gfdelarue/code-budget ${current} -> ${next}\n`,
+  `${dryRun ? "Would bump" : "Bumped"} ${packageJson.name} ${current} -> ${next}\n`,
 );
