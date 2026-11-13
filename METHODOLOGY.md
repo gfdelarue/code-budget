@@ -19,8 +19,10 @@ content lines, while opaque binary fixtures contribute only to file counts.
 Deleting tests therefore cannot improve the enforced implementation result.
 
 Documentation, lockfiles, licenses, and package metadata are identified
-separately. Source-like files which match no area and files matching multiple
-areas fail configured checks. Generated and vendor candidates also fail until
+separately. A file matching areas of different kinds takes the strongest kind:
+excluded, review, verification, tooling, then implementation. Source-like files
+which match no area, and files matching two areas of the same kind, fail
+configured checks. Generated and vendor candidates also fail until
 the config classifies them as implementation, tooling, verification, or an `excluded`
 area with a human-readable reproducibility reason.
 

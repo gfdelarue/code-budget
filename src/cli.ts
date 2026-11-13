@@ -8,8 +8,10 @@ import {
   inferConfig,
   initialConfig,
   renderConfig,
+  resolveAreas,
 } from "./config.js";
 import { explainClassification } from "./classify.js";
+import { listFiles } from "./files.js";
 import { renderExplanation, renderReport, renderScopes } from "./render.js";
 import { SCOPE_NAMES, SCOPES } from "./scopes.js";
 import type { ScopeName } from "./types.js";
@@ -53,9 +55,8 @@ async function runAnalysis(options: CliOptions): Promise<void> {
     );
   }
   const configured = loaded.config !== undefined;
-  const config = loaded.config ?? inferConfig();
   const report = await analyzeRepository({
-    config,
+    ...(loaded.config ? { config: loaded.config } : {}),
     configured,
     cwd: options.cwd,
     ...(loaded.path ? { configPath: loaded.path } : {}),
@@ -80,9 +81,10 @@ async function runInit(options: CliOptions): Promise<void> {
       `Refusing to replace ${target}; pass --force to replace it.`,
     );
   }
-  const source = renderConfig(options.scope);
+  const files = listFiles(options.cwd, "git-visible");
+  const source = renderConfig(options.scope, files);
   if (!options.dryRun) fs.writeFileSync(target, source, "utf8");
-  const config = initialConfig(options.scope);
+  const config = initialConfig(options.scope, files);
   const report = await analyzeRepository({
     config,
     configured: true,
@@ -117,12 +119,23 @@ async function runExplain(options: CliOptions): Promise<void> {
   if (config && "budgets" in config) {
     throw new Error("explain requires the 0.1 areas configuration schema");
   }
-  const current = config ?? inferConfig();
+  const files =
+    !config || config.defaults
+      ? listFiles(options.cwd, config?.files ?? "git-visible")
+      : [];
+  const resolved = resolveAreas(
+    config ?? inferConfig("simple-tool", files),
+    files,
+  );
   const normalized = path
     .relative(options.cwd, path.resolve(options.cwd, file))
     .split(path.sep)
     .join("/");
-  const explanation = explainClassification(normalized, current.areas);
+  const explanation = explainClassification(
+    normalized,
+    resolved.areas,
+    resolved.defaultAreas,
+  );
   if (options.json)
     writeJson({ command: "explain", configured: Boolean(config), explanation });
   else write(`${renderExplanation(explanation).join("\n")}\n`);

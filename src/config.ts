@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { isGeneratedVendorCandidate, matchesPatterns } from "./classify.js";
 import { SCOPE_NAMES } from "./scopes.js";
 import type {
   AreaDefinition,
@@ -83,7 +84,8 @@ export function validateConfig(
   input: unknown,
 ): CodeBudgetConfig | LegacyCodeBudgetConfig {
   if (!isRecord(input)) throw new Error("Code budget config must be an object");
-  if (Array.isArray(input.areas)) return validateCurrentConfig(input);
+  if (Array.isArray(input.areas) || input.defaults !== undefined)
+    return validateCurrentConfig(input);
   if (Array.isArray(input.budgets)) return validateLegacyConfig(input);
   throw new Error("Code budget config must contain an areas array");
 }
@@ -94,11 +96,20 @@ function validateCurrentConfig(
   if (!SCOPE_NAMES.includes(input.scope as ScopeName)) {
     throw new Error(`scope must be one of: ${SCOPE_NAMES.join(", ")}`);
   }
-  if ((input.areas as unknown[]).length === 0) {
-    throw new Error("Code budget config must define at least one area");
+  if (input.defaults !== undefined && typeof input.defaults !== "boolean") {
+    throw new Error("defaults must be a boolean");
+  }
+  if (input.areas !== undefined && !Array.isArray(input.areas)) {
+    throw new Error("areas must be an array");
+  }
+  const areas = (input.areas ?? []) as unknown[];
+  if (areas.length === 0 && input.defaults !== true) {
+    throw new Error(
+      "Code budget config must define at least one area or set defaults: true",
+    );
   }
   const names = new Set<string>();
-  for (const value of input.areas as unknown[]) {
+  for (const value of areas) {
     validateArea(value);
     if (names.has(value.name))
       throw new Error(`Duplicate area name: ${value.name}`);
@@ -188,70 +199,156 @@ export function isLegacyConfig(
   return "budgets" in config;
 }
 
-export function inferConfig(
-  scope: ScopeName = "simple-tool",
-): CodeBudgetConfig {
-  return initialConfig(scope);
+const GITHUB = [".github/**"];
+const VERIFICATION = [
+  "**/{test,tests,spec,specs,__tests__,benches}/**",
+  "**/*.test.*",
+  "**/*.spec.*",
+  "**/*_test.go",
+  "**/test_*.py",
+  "**/*_test.py",
+  "**/conftest.py",
+];
+const FIXTURES = ["**/{fixture,fixtures,__fixtures__,testdata}/**"];
+const TOOL_CONFIG = [
+  "**/{code-budget,vite,vitest,webpack,rollup,esbuild,tsup,babel,eslint,prettier,jest,playwright,cypress,next,nuxt,svelte,astro,postcss,tailwind}.config.{js,cjs,mjs,ts,cts,mts,json}",
+  "**/tsconfig*.json",
+  "**/{.eslintrc,.prettierrc,.babelrc}",
+  "**/{.eslintrc,.prettierrc,.babelrc}.{js,cjs,mjs,json,yaml,yml}",
+  "**/{Makefile,GNUmakefile,Justfile,justfile,Rakefile,Dockerfile,Dockerfile.*}",
+  "**/{compose,compose.*,docker-compose,docker-compose.*}.{yml,yaml}",
+  ".husky/**",
+];
+const IMPLEMENTATION_DIRECTORIES = ["src", "lib", "app", "packages", "bin"];
+const GO_IMPLEMENTATION_DIRECTORIES = ["cmd", "internal", "pkg"];
+const TOOLING_DIRECTORIES = ["scripts", "tools", "tooling"];
+const APP_ROOT_MARKERS = new Set([
+  "Cargo.toml",
+  "go.mod",
+  "package.json",
+  "pyproject.toml",
+  "tsconfig.json",
+]);
+
+export interface ResolvedAreas {
+  areas: AreaDefinition[];
+  /** Names of inferred default areas, which yield to configured areas. */
+  defaultAreas: Set<string>;
 }
 
-export function initialConfig(scope: ScopeName): CodeBudgetConfig {
-  const github = [".github/**"];
-  const verification = [
-    "**/{test,tests,spec,specs,__tests__}/**",
-    "**/*.test.*",
-    "**/*.spec.*",
+export function inferConfig(
+  scope: ScopeName = "simple-tool",
+  files: readonly string[] = [],
+): CodeBudgetConfig & { areas: AreaDefinition[] } {
+  return initialConfig(scope, files);
+}
+
+export function initialConfig(
+  scope: ScopeName,
+  files: readonly string[] = [],
+): CodeBudgetConfig & { areas: AreaDefinition[] } {
+  return { scope, areas: defaultAreas(files) };
+}
+
+/**
+ * Builds the default areas. Without repository paths only root conventions
+ * apply; with them, a root go.mod adds Go package directories and nested app
+ * roots (directories with a package.json, tsconfig.json, go.mod,
+ * pyproject.toml, or Cargo.toml) get the root conventions relative to them.
+ */
+export function defaultAreas(files: readonly string[] = []): AreaDefinition[] {
+  const implementation = under("", IMPLEMENTATION_DIRECTORIES);
+  const tooling = under("", TOOLING_DIRECTORIES);
+  for (const [root, markers] of appRoots(files)) {
+    if (root !== "") {
+      const probe = `${root}/.code-budget-app-root`;
+      const claimed = [
+        ...GITHUB,
+        ...VERIFICATION,
+        ...FIXTURES,
+        ...tooling,
+        ...TOOL_CONFIG,
+        ...implementation,
+      ];
+      if (isGeneratedVendorCandidate(probe) || matchesPatterns(probe, claimed))
+        continue;
+      implementation.push(...under(root, IMPLEMENTATION_DIRECTORIES));
+      tooling.push(...under(root, TOOLING_DIRECTORIES));
+    }
+    if (markers.has("go.mod")) {
+      implementation.push(
+        ...under(root, GO_IMPLEMENTATION_DIRECTORIES),
+        root ? `${root}/*.go` : "*.go",
+      );
+    }
+  }
+  return [
+    { name: "runtime", kind: "implementation", include: implementation },
+    { name: "github", kind: "tooling", include: GITHUB },
+    {
+      name: "tooling",
+      kind: "tooling",
+      include: [...tooling, ...TOOL_CONFIG],
+      exclude: GITHUB,
+    },
+    {
+      name: "tests",
+      kind: "verification",
+      include: VERIFICATION,
+      exclude: [...GITHUB, ...FIXTURES],
+    },
+    {
+      name: "fixtures",
+      kind: "verification",
+      include: FIXTURES,
+      exclude: GITHUB,
+    },
   ];
-  const fixtures = ["**/{fixture,fixtures,__fixtures__}/**"];
-  const tooling = [
-    "scripts/**",
-    "tools/**",
-    "tooling/**",
-    "**/{code-budget,vite,vitest,webpack,rollup,esbuild,tsup,babel,eslint,prettier,jest,playwright,cypress,next,nuxt,svelte,astro,postcss,tailwind}.config.{js,cjs,mjs,ts,cts,mts,json}",
-    "**/tsconfig*.json",
-    "**/{.eslintrc,.prettierrc,.babelrc}",
-    "**/{.eslintrc,.prettierrc,.babelrc}.{js,cjs,mjs,json,yaml,yml}",
-    "**/{Makefile,GNUmakefile,Justfile,justfile,Rakefile,Dockerfile,Dockerfile.*}",
-    "**/{compose,compose.*,docker-compose,docker-compose.*}.{yml,yaml}",
-    ".husky/**",
-  ];
+}
+
+/** Combines configured areas with the default areas when `defaults` is set. */
+export function resolveAreas(
+  config: CodeBudgetConfig,
+  files: readonly string[] = [],
+): ResolvedAreas {
+  const configured = config.areas ?? [];
+  if (!config.defaults) {
+    return { areas: [...configured], defaultAreas: new Set() };
+  }
+  const names = new Set(configured.map((area) => area.name));
+  const defaults = defaultAreas(files).filter((area) => !names.has(area.name));
   return {
-    scope,
-    areas: [
-      {
-        name: "runtime",
-        kind: "implementation",
-        include: ["src/**", "lib/**", "app/**", "packages/**", "bin/**"],
-        exclude: [...github, ...verification, ...fixtures, ...tooling],
-      },
-      {
-        name: "github",
-        kind: "tooling",
-        include: github,
-      },
-      {
-        name: "tooling",
-        kind: "tooling",
-        include: tooling,
-        exclude: [...github, ...verification, ...fixtures],
-      },
-      {
-        name: "tests",
-        kind: "verification",
-        include: verification,
-        exclude: [...github, ...fixtures],
-      },
-      {
-        name: "fixtures",
-        kind: "verification",
-        include: fixtures,
-        exclude: github,
-      },
-    ],
+    areas: [...defaults, ...configured],
+    defaultAreas: new Set(defaults.map((area) => area.name)),
   };
 }
 
-export function renderConfig(scope: ScopeName): string {
-  return `import { defineConfig } from "@moontern-labs/code-budget";\n\nexport default defineConfig(${JSON.stringify(initialConfig(scope), null, 2)});\n`;
+export function renderConfig(
+  scope: ScopeName,
+  files: readonly string[] = [],
+): string {
+  return `import { defineConfig } from "@moontern-labs/code-budget";\n\nexport default defineConfig(${JSON.stringify(initialConfig(scope, files), null, 2)});\n`;
+}
+
+function appRoots(files: readonly string[]): Array<[string, Set<string>]> {
+  const roots = new Map<string, Set<string>>();
+  for (const file of files) {
+    const slash = file.lastIndexOf("/");
+    if (!APP_ROOT_MARKERS.has(file.slice(slash + 1))) continue;
+    const root = slash < 0 ? "" : file.slice(0, slash);
+    roots.set(root, (roots.get(root) ?? new Set()).add(file.slice(slash + 1)));
+  }
+  const depth = (root: string): number =>
+    root === "" ? 0 : root.split("/").length;
+  return [...roots].sort(
+    ([a], [b]) => depth(a) - depth(b) || a.localeCompare(b),
+  );
+}
+
+function under(root: string, directories: readonly string[]): string[] {
+  return directories.map((directory) =>
+    root ? `${root}/${directory}/**` : `${directory}/**`,
+  );
 }
 
 function validateFileSet(value: unknown): void {

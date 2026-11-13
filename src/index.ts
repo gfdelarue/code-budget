@@ -5,6 +5,7 @@ export {
 } from "./check.js";
 export {
   CONFIG_FILES,
+  defaultAreas,
   defineConfig,
   findConfig,
   inferConfig,
@@ -12,8 +13,10 @@ export {
   isLegacyConfig,
   loadConfig,
   renderConfig,
+  resolveAreas,
   validateConfig,
   type LoadedConfig,
+  type ResolvedAreas,
 } from "./config.js";
 export {
   classifyFiles,
@@ -21,7 +24,9 @@ export {
   isGeneratedVendorCandidate,
   isMetadata,
   isSourceLike,
+  KIND_PRECEDENCE,
   matchesPatterns,
+  selectAreas,
   type Classification,
 } from "./classify.js";
 export { renderExplanation, renderReport, renderScopes } from "./render.js";
