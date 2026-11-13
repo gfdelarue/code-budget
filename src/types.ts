@@ -26,7 +26,13 @@ export interface AreaDefinition {
 }
 
 export interface CodeBudgetConfig {
-  areas: readonly AreaDefinition[];
+  /** Optional when `defaults` is true. */
+  areas?: readonly AreaDefinition[];
+  /**
+   * Adds the inferred default areas for the repository. A configured area
+   * with the same name as a default area replaces it.
+   */
+  defaults?: boolean;
   files?: FileSet;
   ignore?: readonly string[];
   scope: ScopeName;
@@ -152,6 +158,8 @@ export interface FileClassificationExplanation {
     kind: AreaKind;
     matched: boolean;
     name: string;
+    /** True for the matching area(s) that classify the file after precedence. */
+    selected: boolean;
   }>;
   category:
     | "ancillary"

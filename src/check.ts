@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { classifyFiles } from "./classify.js";
-import { inferConfig, isLegacyConfig } from "./config.js";
+import { inferConfig, isLegacyConfig, resolveAreas } from "./config.js";
 import { measureFiles } from "./counter.js";
 import { listFiles } from "./files.js";
 import { SCOPES } from "./scopes.js";
@@ -32,16 +32,22 @@ export async function analyzeRepository(
   options: AnalyzeRepositoryOptions = {},
 ): Promise<CodeBudgetReport> {
   const cwd = path.resolve(options.cwd ?? process.cwd());
-  const original = options.config ?? inferConfig();
-  const legacy = isLegacyConfig(original);
-  const config = legacy ? adaptLegacy(original) : original;
+  const provided = options.config;
+  const original = provided && isLegacyConfig(provided) ? provided : undefined;
+  const files = listFiles(cwd, provided?.files ?? "git-visible");
+  const config = original
+    ? adaptLegacy(original)
+    : ((provided as CodeBudgetConfig | undefined) ??
+      inferConfig("simple-tool", files));
+  const resolved = resolveAreas(config, files);
   const classification = classifyFiles(
-    listFiles(cwd, config.files ?? "git-visible"),
-    config.areas,
+    files,
+    resolved.areas,
     config.ignore,
+    resolved.defaultAreas,
   );
   const areas: AreaResult[] = await Promise.all(
-    config.areas.map(async (definition) => {
+    resolved.areas.map(async (definition) => {
       const paths = classification.groups.get(definition.name) ?? [];
       return {
         definition,
@@ -64,8 +70,10 @@ export async function analyzeRepository(
         totals.implementation.codeLines,
       )
     : [];
-  const budgets = legacy ? legacyResults(cwd, original, areas, violations) : [];
-  const deprecations = legacy
+  const budgets = original
+    ? legacyResults(cwd, original, areas, violations)
+    : [];
+  const deprecations = original
     ? [
         "Configuration schema 0.0.1 is deprecated; migrate budgets to scope and areas.",
         ...(original.budgets.some(

@@ -1,6 +1,7 @@
 import { minimatch } from "minimatch";
 import type {
   AreaDefinition,
+  AreaKind,
   BudgetDefinition,
   FileClassificationExplanation,
 } from "./types.js";
@@ -13,6 +14,15 @@ export interface Classification {
   overlaps: Record<string, string[]>;
   unmatched: string[];
 }
+
+/** Higher values win when a file matches areas of different kinds. */
+export const KIND_PRECEDENCE: Readonly<Record<AreaKind, number>> = {
+  excluded: 4,
+  review: 3,
+  verification: 2,
+  tooling: 1,
+  implementation: 0,
+};
 
 const MATCH_OPTIONS = { dot: true, nocase: false } as const;
 const GENERATED_VENDOR = [
@@ -100,10 +110,31 @@ const SOURCE_EXTENSIONS = new Set([
   ".zig",
 ]);
 
+/**
+ * Resolves the areas that classify a file. The highest-precedence kind wins;
+ * within that kind, configured areas win over inferred default areas. Any
+ * remaining tie is an overlap.
+ */
+export function selectAreas<T extends { kind?: AreaKind; name: string }>(
+  matched: readonly T[],
+  defaultAreas: ReadonlySet<string> = new Set(),
+): T[] {
+  if (matched.length < 2) return [...matched];
+  const rank = (definition: T): number =>
+    KIND_PRECEDENCE[definition.kind ?? "implementation"];
+  const top = Math.max(...matched.map(rank));
+  const strongest = matched.filter((definition) => rank(definition) === top);
+  const configured = strongest.filter(
+    (definition) => !defaultAreas.has(definition.name),
+  );
+  return configured.length > 0 ? configured : strongest;
+}
+
 export function classifyFiles(
   paths: readonly string[],
   definitions: readonly (AreaDefinition | BudgetDefinition)[],
   ignore: readonly string[] = [],
+  defaultAreas: ReadonlySet<string> = new Set(),
 ): Classification {
   const groups = new Map(
     definitions.map((definition) => [definition.name, [] as string[]]),
@@ -116,10 +147,13 @@ export function classifyFiles(
 
   for (const file of paths) {
     if (matchesPatterns(file, ignore)) continue;
-    const matched = definitions.filter(
-      (definition) =>
-        matchesPatterns(file, definition.include) &&
-        !matchesPatterns(file, definition.exclude ?? []),
+    const matched = selectAreas(
+      definitions.filter(
+        (definition) =>
+          matchesPatterns(file, definition.include) &&
+          !matchesPatterns(file, definition.exclude ?? []),
+      ),
+      defaultAreas,
     );
     if (matched.length > 1) {
       overlaps[file] = matched.map((definition) => definition.name);
@@ -152,8 +186,9 @@ export function classifyFiles(
 export function explainClassification(
   file: string,
   definitions: readonly AreaDefinition[],
+  defaultAreas: ReadonlySet<string> = new Set(),
 ): FileClassificationExplanation {
-  const areas = definitions.map((definition) => {
+  const matches = definitions.map((definition) => {
     const includedBy = definition.include.filter((pattern) =>
       matchesPatterns(file, [pattern]),
     );
@@ -168,7 +203,17 @@ export function explainClassification(
       name: definition.name,
     };
   });
-  const matched = areas.filter((area) => area.matched);
+  const selected = new Set(
+    selectAreas(
+      matches.filter((area) => area.matched),
+      defaultAreas,
+    ).map((area) => area.name),
+  );
+  const areas = matches.map((area) => ({
+    ...area,
+    selected: selected.has(area.name),
+  }));
+  const matched = areas.filter((area) => area.selected);
   const category =
     matched.length > 0
       ? "area"

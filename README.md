@@ -16,8 +16,8 @@ updates the lockfile and versioned source/documentation references. Preview it w
 Implementation measures product code. Tooling measures development, build,
 release, lint, and operational support separately, without a ceiling. Tests,
 test-only helpers, and fixtures are also measured but never limited. Documentation, lockfiles, licenses, and package metadata are
-reported separately. Moving source into an unmatched directory or overlapping
-areas fails a configured check.
+reported separately. Moving source into an unmatched directory or into two
+areas of the same kind fails a configured check.
 
 ## Configuration
 
@@ -31,13 +31,11 @@ export default defineConfig({
       name: "runtime",
       kind: "implementation",
       include: ["src/**", "bin/**"],
-      exclude: ["**/*.test.*", "**/__tests__/**"],
     },
     {
       name: "tooling",
       kind: "tooling",
       include: ["scripts/**"],
-      exclude: ["scripts/test/**", "**/*.test.*"],
     },
     {
       name: "tests",
@@ -60,18 +58,72 @@ export default defineConfig({
 });
 ```
 
+### Precedence
+
+When a file matches areas of different kinds, the strongest kind classifies it:
+`excluded`, then `review`, then `verification`, then `tooling`, then
+`implementation`. Tests inside `src/**` therefore count as verification without
+an `exclude` in the implementation area. A file that matches two areas of the
+same kind fails the check as an overlap, because it would be counted twice.
+`code-budget explain <path>` shows every matching area and which one won.
+
+### Defaults plus project areas
+
+Set `defaults: true` to keep the inferred default areas and add only what is
+specific to the project:
+
+```js
+export default defineConfig({
+  scope: "platform",
+  defaults: true,
+  areas: [
+    { name: "server", kind: "implementation", include: ["server/**"] },
+    {
+      name: "testkit",
+      kind: "verification",
+      include: ["**/__testkit__/**"],
+    },
+  ],
+});
+```
+
+Configured areas win over default areas of the same kind, so `server/**` does
+not overlap the default `runtime` area. Precedence still applies across kinds,
+so tests, fixtures, and tool configuration under `server/**` keep their default
+classification. To change a default area, define an area with the same name
+(`runtime`, `github`, `tooling`, `tests`, or `fixtures`). It replaces the
+default area. Defaults are inferred again on every run, so new app roots and
+conventions are picked up automatically.
+
 ### Tooling defaults
 
-Inference and `init` use the same classifications:
+Inference, `init`, and `defaults: true` use the same classifications:
 
-| Paths                                                                                                       | Classification                                                   |
-| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Everything under `.github/**`, including tests and templates                                                | `tooling`                                                        |
-| Root `scripts/**`, `tools/**`, and `tooling/**`                                                             | `tooling`, except recognized tests and fixtures                  |
-| Root `.husky/**`                                                                                            | `tooling`, except recognized tests and fixtures                  |
-| `src/**`, `lib/**`, `app/**`, `packages/**`, and `bin/**`                                                   | `implementation`, except recognized tooling, tests, and fixtures |
-| Directories named `test`, `tests`, `spec`, `specs`, or `__tests__`; files matching `*.test.*` or `*.spec.*` | `verification`, outside `.github/**`                             |
-| Directories named `fixture`, `fixtures`, or `__fixtures__`                                                  | `verification`, outside `.github/**`                             |
+| Paths                                                                                          | Classification                    |
+| ---------------------------------------------------------------------------------------------- | --------------------------------- |
+| Everything under `.github/**`, including tests and templates                                   | `tooling`                         |
+| Root `scripts/**`, `tools/**`, and `tooling/**`                                                | `tooling`                         |
+| Root `.husky/**`                                                                               | `tooling`                         |
+| `src/**`, `lib/**`, `app/**`, `packages/**`, and `bin/**`                                      | `implementation`                  |
+| With a `go.mod`: `cmd/**`, `internal/**`, `pkg/**`, and `*.go` beside the `go.mod`             | `implementation`                  |
+| Directories named `test`, `tests`, `spec`, `specs`, `__tests__`, or `benches`                  | `verification`, outside `.github` |
+| Files matching `*.test.*`, `*.spec.*`, `*_test.go`, `test_*.py`, `*_test.py`, or `conftest.py` | `verification`, outside `.github` |
+| Directories named `fixture`, `fixtures`, `__fixtures__`, or `testdata`                         | `verification`, outside `.github` |
+
+Precedence resolves the overlaps between these rows. Recognized tests and
+fixtures win over tooling and implementation, and tooling wins over
+implementation.
+
+#### Nested app roots
+
+A directory with a `package.json`, `tsconfig.json`, `go.mod`, `pyproject.toml`,
+or `Cargo.toml` is an app root. The root conventions apply relative to it. With
+`web/package.json`, `web/src/**` is implementation and `web/scripts/**` is
+tooling. With `services/api/go.mod`, `services/api/internal/**` is
+implementation. App roots are skipped when they are already covered (such as
+`packages/ui`), or when they sit inside tests, fixtures, tooling, `.github`, or
+generated and vendor directories. Loose files directly inside an app root, such
+as `web/build.mjs`, stay unclassified because their purpose can't be inferred.
 
 Tool configuration patterns match at any depth. Supported `NAME.config.EXT`
 files use these names: `code-budget`, `vite`, `vitest`, `webpack`, `rollup`,
@@ -83,8 +135,7 @@ Other tooling patterns cover `tsconfig*.json`; `.eslintrc`, `.prettierrc`, and
 `.babelrc`, either extensionless or with `js`, `cjs`, `mjs`, `json`, `yaml`, or
 `yml`; `Makefile`, `GNUmakefile`, `Justfile`, `justfile`, `Rakefile`, `Dockerfile`,
 and `Dockerfile.*`; and Compose YAML files named `compose`, `compose.*`,
-`docker-compose`, or `docker-compose.*`. Recognized tests and fixtures take
-precedence over these patterns outside `.github/**`.
+`docker-compose`, or `docker-compose.*`.
 
 These defaults cannot determine a script's purpose. Add explicit areas for
 other tool configurations, deployment manifests, or tooling directories. Unknown
@@ -95,14 +146,15 @@ as `src/customer.config.ts` stay in implementation.
 
 Upgrading does not rewrite committed configurations or infer a kind from an
 area's name. Change an existing tooling area's `kind` from `implementation` to
-`tooling`. Give `.github/**` its own tooling area, and exclude `.github/**` from
-any other matching areas. Use `code-budget init --scope <scope> --dry-run` to
-inspect the complete defaults without replacing your policy.
+`tooling`. Give `.github/**` its own tooling area, and exclude `.github/**` from your
+verification and other tooling areas. Use `code-budget init --scope <scope> --dry-run` to
+inspect the complete defaults for your repository without replacing your policy.
 
 For product logic under a tooling directory, add an implementation area such as
-`include: ["scripts/import-customers/**"]`. Add that same pattern to the tooling
-area's `exclude` list. Retain separate verification rules for any tests and
-fixtures in the product directory. Overlapping areas still fail checks.
+`include: ["scripts/import-customers/**"]`. Because tooling takes precedence over
+implementation, also add that pattern to the tooling area's `exclude` list. With
+`defaults: true`, do this by defining your own `tooling` area. Tests and fixtures
+in the product directory keep their verification classification.
 
 Reports include `TOOLING (UNLIMITED)` and JSON `totals.tooling`, including file,
 LOC, and language counts. Tooling contributes to the combined language report,

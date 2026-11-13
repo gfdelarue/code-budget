@@ -53,3 +53,18 @@ test("accepts tooling without reinterpreting existing implementation areas", () 
     assert.deepEqual(validateConfig(config), config);
   }
 });
+
+test("defaults: true makes areas optional", () => {
+  assert.deepEqual(validateConfig({ scope: "simple-tool", defaults: true }), {
+    scope: "simple-tool",
+    defaults: true,
+  });
+  assert.throws(
+    () => validateConfig({ scope: "simple-tool", defaults: "yes" }),
+    /defaults must be a boolean/,
+  );
+  assert.throws(
+    () => validateConfig({ scope: "simple-tool", defaults: false, areas: [] }),
+    /at least one area or set defaults: true/,
+  );
+});

@@ -155,7 +155,7 @@ export function renderExplanation(
   ];
   for (const area of explanation.areas) {
     lines.push(
-      `  ${area.name} [${area.kind}]: ${area.matched ? "MATCH" : "no match"}`,
+      `  ${area.name} [${area.kind}]: ${area.selected ? "MATCH" : area.matched ? "MATCH (overridden by precedence)" : "no match"}`,
     );
     lines.push(
       `    include: ${area.includedBy.length > 0 ? area.includedBy.join(", ") : "none"}`,
